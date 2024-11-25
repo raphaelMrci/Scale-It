@@ -64,6 +64,10 @@ void handleHello(const String &command)
 
 void handleInit(const String &command)
 {
+    if (status != STATUS_SYNCED) {
+        return;
+    }
+
     SDReader::err_sd_t err = sdReader.init();
 
     switch (err) {
@@ -102,14 +106,14 @@ void handleInit(const String &command)
 
     esp_err_t camErr = esp_camera_init(&cameraConfig);
     if (camErr != ESP_OK) {
-        Serial.printf("ERROR: Camera init failed with error 0x%x\n", camErr);
+        // Serial.printf("ERROR: Camera init failed with error 0x%x\n", camErr);
         commandHandler.sendCommand("CAM_INIT_FAIL");
         return;
     }
 
     APIHandler::api_response_code_t response = apiHandler.pingAPI();
 
-    Serial.println("API response: " + String(response));
+    // Serial.println("API response: " + String(response));
 
     if (response != 200) {
         commandHandler.sendCommand("NO_INTERNET");
@@ -123,12 +127,18 @@ void handleInit(const String &command)
 
 void setup()
 {
-    Serial.begin(9600);
+    Serial.begin(115200);
+    delay(1000);
 
     // Register command handlers
     commandHandler.registerRoute("HELLO", handleHello);
+    commandHandler.registerRoute("INIT", handleInit);
+
+    commandHandler.sendCommand("HELLO");
 }
 
 void loop()
 {
+    commandHandler.handleIncomingCommand();
+    delay(100);
 }

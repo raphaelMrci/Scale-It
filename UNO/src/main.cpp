@@ -20,8 +20,8 @@
 // Capture button
 #define CAPTURE_BUTTON_PIN 5 // Digital pin for the capture button
 
-#define ESP_RX 7
-#define ESP_TX 8
+#define ESP_RX 6
+#define ESP_TX 7
 
 LiquidCrystal_I2C lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 HX711 scale;
@@ -138,9 +138,10 @@ void handleConfigFileNotCreated(const String &command)
 
 void setup()
 {
-    Serial.begin(9600);
-    espSerial.begin(9600); // Communication with ESP32
+    Serial.begin(115200);
+    espSerial.begin(115200); // Communication with ESP32
 
+    delay(1000);
     // Initialize LCD
     lcd.init();
     lcd.backlight();
@@ -174,12 +175,17 @@ void setup()
     // Initialize tare button
     pinMode(TARE_BUTTON_PIN,
             INPUT_PULLUP); // Configure as input with pull-up resistor
-
-    Serial.println("Scale ready");
 }
 
 void loop()
 {
+
+    commandHandler.handleIncomingCommand();
+    delay(100);
+
+    if (status != STATUS_READY) {
+        return;
+    }
     // Read weight
     float weight = scale.get_units(10); // Get average weight from 10 readings
 

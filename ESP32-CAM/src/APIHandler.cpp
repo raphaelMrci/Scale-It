@@ -7,11 +7,11 @@
 
 APIHandler::err_wifi_t APIHandler::init(const WiFiConfig &config)
 {
-    Serial.println("Connecting to WiFi...");
+    // Serial.println("Connecting to WiFi...");
 
     if (config.ssid.empty() || config.password.empty()) {
-        Serial.println(
-            "ERROR: SSID or Password is missing. Cannot connect to WiFi.");
+        // Serial.println(
+        //     "ERROR: SSID or Password is missing. Cannot connect to WiFi.");
         return WIFI_ERR;
     }
 
@@ -24,34 +24,34 @@ APIHandler::err_wifi_t APIHandler::init(const WiFiConfig &config)
             subnet.fromString(config.mask.c_str())) {
 
             if (!WiFi.config(localIP, gateway, subnet)) {
-                Serial.println("ERROR: Failed to configure static IP.");
+                // Serial.println("ERROR: Failed to configure static IP.");
                 return WIFI_ERR;
             }
-            Serial.println("Static IP configuration applied.");
+            // Serial.println("Static IP configuration applied.");
         } else {
-            Serial.println("ERROR: Invalid IP, Gateway, or Mask format.");
+            // Serial.println("ERROR: Invalid IP, Gateway, or Mask format.");
             return WIFI_ERR;
         }
     }
 
     // Connect to WiFi
-    Serial.println("Connecting to WiFi...");
+    // Serial.println("Connecting to WiFi...");
     WiFi.begin(config.ssid.c_str(), config.password.c_str());
 
     int retryCount = 20; // Retry up to 20 times
 
     while (WiFi.status() != WL_CONNECTED && retryCount > 0) {
         delay(500);
-        Serial.print(".");
+        // Serial.print(".");
         retryCount--;
     }
 
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("\nERROR: Failed to connect to WiFi.");
+        // Serial.println("\nERROR: Failed to connect to WiFi.");
         return WIFI_ERR;
     }
 
-    Serial.println("\nConnected to WiFi.");
+    // Serial.println("\nConnected to WiFi.");
     return WIFI_OK;
 }
 
@@ -59,7 +59,7 @@ APIHandler::api_response_code_t APIHandler::pingAPI()
 {
     HTTPClient http;
 
-    String url = API_URL + "/hello";
+    String url = API_URL + "/";
 
     http.begin(url); // Start HTTP connection
 
@@ -86,8 +86,8 @@ APIHandler::api_response_code_t APIHandler::fetchData(const String &name,
         // Parse response (extract calories value)
         result = _parseCalories(response);
     } else {
-        Serial.print("Error on HTTP request: ");
-        Serial.println(httpResponseCode);
+        // Serial.print("Error on HTTP request: ");
+        // Serial.println(httpResponseCode);
     }
 
     http.end(); // End the HTTP connection
@@ -104,8 +104,8 @@ float APIHandler::_parseCalories(String &data)
     DeserializationError error = deserializeJson(doc, data);
 
     if (error) {
-        Serial.print(F("deserializeJson() failed: "));
-        Serial.println(error.f_str());
+        // Serial.print(F("deserializeJson() failed: "));
+        // Serial.println(error.f_str());
         return 0; // Return 0 if parsing fails
     }
 

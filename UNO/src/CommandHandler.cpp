@@ -30,6 +30,7 @@ void CommandHandler::handleIncomingCommand()
         String cmd = command.substring(0, spaceIndex);
         String args =
             (spaceIndex != -1) ? command.substring(spaceIndex + 1) : "";
+        Serial.println("Received command: " + cmd);
 
         for (int i = 0; i < numRoutes; i++) {
             if (routes[i].command == cmd) {
@@ -37,15 +38,13 @@ void CommandHandler::handleIncomingCommand()
                 return;
             }
         }
-
-        // If no handler found, print an error
-        serial.println("Unknown command: " + cmd);
     }
 }
 
 // Send a command with optional arguments
 void CommandHandler::sendCommand(const String &command, const String &args)
 {
+    Serial.println("Sending command: " + command);
     String fullCommand = command;
     if (args.length() > 0) {
         fullCommand += " " + args;

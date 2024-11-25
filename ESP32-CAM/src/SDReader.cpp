@@ -5,37 +5,37 @@
 SDReader::err_sd_t SDReader::init()
 {
     if (!SD_MMC.begin("", true)) {
-        Serial.println("ERROR: SD card initialization failed");
+        // Serial.println("ERROR: SD card initialization failed");
         return SD_ERR_NO_SDC;
     }
 
-    Serial.println("SD card initialized");
+    // Serial.println("SD card initialized");
 
     // Check if config.txt file exists in SD card
     if (!SD_MMC.exists("/config.txt")) {
-        Serial.println("Config file not found");
+        // Serial.println("Config file not found");
 
         // Create config.txt file
         File file = SD_MMC.open("/config.txt", FILE_WRITE);
         if (!file) {
-            Serial.println("Failed to create config file");
+            // Serial.println("Failed to create config file");
             return SD_ERR_CONFIG_FILE_NOT_CREATED;
         }
         file.print(_defaultConfig.c_str());
         file.close();
-        Serial.println("Config file created");
+        // Serial.println("Config file created");
     }
     return SD_OK;
 }
 
 SDReader::err_read_config_t SDReader::readConfig(WiFiConfig &config)
 {
-    Serial.println("Reading config file...");
+    // Serial.println("Reading config file...");
 
     // Read the entire file content
     String configFile = readFile("/config.txt");
     if (configFile.isEmpty()) {
-        Serial.println("ERROR: Config file is empty or cannot be read.");
+        // Serial.println("ERROR: Config file is empty or cannot be read.");
         return RC_BAD_WIFI_CONFIG;
     }
 
@@ -71,12 +71,12 @@ SDReader::err_read_config_t SDReader::readConfig(WiFiConfig &config)
         }
     }
 
-    Serial.println("Config file parsed successfully:");
-    Serial.println("SSID: " + String(config.ssid.c_str()));
-    Serial.println("Password: " + String(config.password.c_str()));
-    Serial.println("Gateway: " + String(config.gateway.c_str()));
-    Serial.println("IP: " + String(config.ip.c_str()));
-    Serial.println("MASK: " + String(config.mask.c_str()));
+    // Serial.println("Config file parsed successfully:");
+    // Serial.println("SSID: " + String(config.ssid.c_str()));
+    // Serial.println("Password: " + String(config.password.c_str()));
+    // Serial.println("Gateway: " + String(config.gateway.c_str()));
+    // Serial.println("IP: " + String(config.ip.c_str()));
+    // Serial.println("MASK: " + String(config.mask.c_str()));
 
     return RC_OK;
 }
@@ -87,7 +87,7 @@ String SDReader::readFile(String path)
     String reading;
 
     if (!file) {
-        Serial.println("ERROR: Unable to open file");
+        // Serial.println("ERROR: Unable to open file");
         return "";
     }
     reading = file.readString();

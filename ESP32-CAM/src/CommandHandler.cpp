@@ -38,9 +38,6 @@ void CommandHandler::handleIncomingCommand()
                 return;
             }
         }
-
-        // If no handler found, print an error
-        serial.println("Unknown command: " + cmd);
     }
 }
 
