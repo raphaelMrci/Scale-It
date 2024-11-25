@@ -28,6 +28,8 @@ SDReader::SDReader()
 
 WiFiConfig SDReader::readConfig()
 {
+    Serial.println("Reading config file...");
+
     // Read the entire file content
     String configFile = readFile("/config.txt");
     if (configFile.isEmpty()) {
@@ -69,11 +71,11 @@ WiFiConfig SDReader::readConfig()
     }
 
     Serial.println("Config file parsed successfully:");
-    // Serial.println("SSID: " + String(config.ssid.c_str()));
-    // Serial.println("Password: " + String(config.password.c_str()));
-    // Serial.println("Gateway: " + String(config.gateway.c_str()));
-    // Serial.println("IP: " + String(config.ip.c_str()));
-    // Serial.println("MASK: " + String(config.mask.c_str()));
+    Serial.println("SSID: " + String(config.ssid.c_str()));
+    Serial.println("Password: " + String(config.password.c_str()));
+    Serial.println("Gateway: " + String(config.gateway.c_str()));
+    Serial.println("IP: " + String(config.ip.c_str()));
+    Serial.println("MASK: " + String(config.mask.c_str()));
 
     return config;
 }
