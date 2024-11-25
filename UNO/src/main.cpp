@@ -126,6 +126,16 @@ void handleFoodNotRecognized(const String &command)
     delay(2000); // Display for 2 seconds
 }
 
+void handleConfigFileNotCreated(const String &command)
+{
+    status = STATUS_ERROR;
+    lcd.clear();
+    lcd.setCursor(1, 0);
+    lcd.print("Config file");
+    lcd.setCursor(1, 1);
+    lcd.print("not created...");
+}
+
 void setup()
 {
     Serial.begin(9600);
@@ -148,6 +158,8 @@ void setup()
     commandHandler.registerRoute("INIT_SUCCESS", handleInitSuccess);
     commandHandler.registerRoute("FOOD_INFO", handleFoodInfo);
     commandHandler.registerRoute("FOOD_NOT_RECOG", handleFoodNotRecognized);
+    commandHandler.registerRoute("CONFIG_FILE_NOT_CREATED",
+                                 handleConfigFileNotCreated);
 
     // Send HELLO
     commandHandler.sendCommand("HELLO");

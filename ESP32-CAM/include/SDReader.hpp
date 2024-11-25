@@ -8,9 +8,23 @@
 class SDReader
 {
   public:
-    SDReader();
+    typedef enum {
+        SD_OK = 0,
+        SD_ERR_NO_SDC,
+        SD_ERR_CONFIG_FILE_NOT_CREATED
+    } err_sd_t;
 
-    WiFiConfig readConfig();
+    typedef enum {
+        RC_OK = 0,
+        RC_BAD_WIFI_CONFIG,
+    } err_read_config_t;
+
+    SDReader() = default;
+
+    err_sd_t init();
+
+    err_read_config_t readConfig(WiFiConfig &config);
+
     String readFile(String path);
 
   private:

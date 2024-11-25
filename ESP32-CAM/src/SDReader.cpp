@@ -2,12 +2,13 @@
 #include "SD_MMC.h"
 #include <dirent.h>
 
-SDReader::SDReader()
+SDReader::err_sd_t SDReader::init()
 {
     if (!SD_MMC.begin("", true)) {
         Serial.println("ERROR: SD card initialization failed");
-        return;
+        return SD_ERR_NO_SDC;
     }
+
     Serial.println("SD card initialized");
 
     // Check if config.txt file exists in SD card
@@ -18,15 +19,16 @@ SDReader::SDReader()
         File file = SD_MMC.open("/config.txt", FILE_WRITE);
         if (!file) {
             Serial.println("Failed to create config file");
-            return;
+            return SD_ERR_CONFIG_FILE_NOT_CREATED;
         }
         file.print(_defaultConfig.c_str());
         file.close();
         Serial.println("Config file created");
     }
+    return SD_OK;
 }
 
-WiFiConfig SDReader::readConfig()
+SDReader::err_read_config_t SDReader::readConfig(WiFiConfig &config)
 {
     Serial.println("Reading config file...");
 
@@ -34,10 +36,9 @@ WiFiConfig SDReader::readConfig()
     String configFile = readFile("/config.txt");
     if (configFile.isEmpty()) {
         Serial.println("ERROR: Config file is empty or cannot be read.");
-        return WiFiConfig(); // Return a default WiFiConfig object
+        return RC_BAD_WIFI_CONFIG;
     }
 
-    WiFiConfig config;
     String lines[5]; // To store lines temporarily
     int index = 0;
 
@@ -77,7 +78,7 @@ WiFiConfig SDReader::readConfig()
     Serial.println("IP: " + String(config.ip.c_str()));
     Serial.println("MASK: " + String(config.mask.c_str()));
 
-    return config;
+    return RC_OK;
 }
 
 String SDReader::readFile(String path)

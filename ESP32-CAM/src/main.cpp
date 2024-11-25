@@ -1,182 +1,134 @@
-#include "HX711.h"
 #include "SDReader.hpp"
 #include "WiFiConfig.hpp"
 
-#include <LiquidCrystal_I2C.h>
-#include <WiFi.h>
+#include "APIHandler.hpp"
+#include "CommandHandler.hpp"
 
-// LCD configuration
-#define I2C_ADDR 0x27  // I2C address of the LCD
-#define LCD_COLUMNS 16 // Number of columns of your LCD
-#define LCD_LINES 2    // Number of rows of your LCD
-#define SDA_PIN 21     // Your custom SDA pin
-#define SCL_PIN 22     // Your custom SCL pin
+#include "config.h"
 
-// HX711 configuration
-#define LOADCELL_DOUT_PIN 15
-#define LOADCELL_SCK_PIN 4
+#include "esp_camera.h"
 
-LiquidCrystal_I2C lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
-HX711 scale;
+// Camera configuration
+#define CAMERA_MODEL_WROVER_KIT // Has PSRAM
 
-// Calibration factor (adjust based on your load cell)
-#define CALIBRATION_FACTOR 2280.0f
+#include "camera_pins.h"
 
-bool isStartupDone = false;
+// Instantiate CommandHandler for communication with ESP32
+CommandHandler commandHandler(Serial);
 
-void connectToWiFi(const WiFiConfig &config)
+SDReader sdReader;
+APIHandler apiHandler;
+
+status_t status = STATUS_BOOT;
+
+camera_config_t cameraConfig;
+
+void camera_init()
 {
-    lcd.setCursor(0, 0);
-    lcd.print("WiFi Connection");
+    cameraConfig.ledc_channel = LEDC_CHANNEL_0;
+    cameraConfig.ledc_timer = LEDC_TIMER_0;
+    cameraConfig.pin_d0 = Y2_GPIO_NUM;
+    cameraConfig.pin_d1 = Y3_GPIO_NUM;
+    cameraConfig.pin_d2 = Y4_GPIO_NUM;
+    cameraConfig.pin_d3 = Y5_GPIO_NUM;
+    cameraConfig.pin_d4 = Y6_GPIO_NUM;
+    cameraConfig.pin_d5 = Y7_GPIO_NUM;
+    cameraConfig.pin_d6 = Y8_GPIO_NUM;
+    cameraConfig.pin_d7 = Y9_GPIO_NUM;
+    cameraConfig.pin_xclk = XCLK_GPIO_NUM;
+    cameraConfig.pin_pclk = PCLK_GPIO_NUM;
+    cameraConfig.pin_vsync = VSYNC_GPIO_NUM;
+    cameraConfig.pin_href = HREF_GPIO_NUM;
+    cameraConfig.pin_sccb_sda = SIOD_GPIO_NUM;
+    cameraConfig.pin_sccb_scl = SIOC_GPIO_NUM;
+    cameraConfig.pin_pwdn = PWDN_GPIO_NUM;
+    cameraConfig.pin_reset = RESET_GPIO_NUM;
+    cameraConfig.xclk_freq_hz = 20000000;
+    cameraConfig.frame_size = FRAMESIZE_QVGA;
+    cameraConfig.pixel_format = PIXFORMAT_JPEG; // for streaming
+    // camera_config.pixel_format = PIXFORMAT_RGB565; // for face
+    // detection/recognition
+    cameraConfig.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+    cameraConfig.fb_location = CAMERA_FB_IN_PSRAM;
+    cameraConfig.jpeg_quality = 10;
+    cameraConfig.fb_count = 2;
+}
 
-    Serial.println("Connecting to WiFi...");
-    Serial.printf("SSID: %s\n", config.ssid.c_str());
-    Serial.printf("Password: %s\n", config.password.c_str());
+void handleHello(const String &command)
+{
+    if (status == STATUS_BOOT) {
+        status = STATUS_SYNCED;
+        commandHandler.sendCommand("HELLO");
+    }
+}
 
-    if (config.ssid.empty() || config.password.empty()) {
-        Serial.println(
-            "ERROR: SSID or Password is missing. Cannot connect to WiFi.");
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("WiFi Error: SSID");
-        lcd.setCursor(0, 1);
-        lcd.print("or Password");
-        delay(3000);
+void handleInit(const String &command)
+{
+    SDReader::err_sd_t err = sdReader.init();
+
+    switch (err) {
+
+    case SDReader::err_sd_t::SD_ERR_NO_SDC:
+        commandHandler.sendCommand("NO_SDC");
+        status = STATUS_ERROR;
+        return;
+    case SDReader::err_sd_t::SD_ERR_CONFIG_FILE_NOT_CREATED:
+        commandHandler.sendCommand("CONFIG_FILE_NOT_CREATED");
+        status = STATUS_ERROR;
         return;
     }
 
-    // Check for static IP configuration
-    if (!config.ip.empty() && !config.gateway.empty() && !config.mask.empty()) {
-        IPAddress localIP, gateway, subnet;
+    // Read WiFi configuration
+    WiFiConfig wifiConfig;
 
-        if (localIP.fromString(config.ip.c_str()) &&
-            gateway.fromString(config.gateway.c_str()) &&
-            subnet.fromString(config.mask.c_str())) {
+    SDReader::err_read_config_t readConfErr = sdReader.readConfig(wifiConfig);
 
-            if (!WiFi.config(localIP, gateway, subnet)) {
-                Serial.println("ERROR: Failed to configure static IP.");
-                lcd.clear();
-                lcd.setCursor(0, 0);
-                lcd.print("WiFi Error: IP");
-                delay(3000);
-                return;
-            }
-            Serial.println("Static IP configuration applied.");
-        } else {
-            Serial.println("ERROR: Invalid IP, Gateway, or Mask format.");
-            lcd.clear();
-            lcd.setCursor(0, 0);
-            lcd.print("IP Config Error");
-            delay(3000);
-            return;
-        }
-    }
-
-    // Connect to WiFi
-    Serial.println("Connecting to WiFi...");
-    WiFi.begin(config.ssid.c_str(), config.password.c_str());
-
-    int retryCount = 20; // Retry up to 20 times
-    int dotCount = 0;
-
-    while (WiFi.status() != WL_CONNECTED && retryCount > 0) {
-        delay(500);
-        Serial.print(".");
-        retryCount--;
-
-        lcd.setCursor(0, 1);
-        if (dotCount < 16) {
-            lcd.print(".");
-            dotCount++;
-        } else {
-            lcd.setCursor(0, 1);
-            lcd.print("                ");
-            lcd.setCursor(0, 1);
-            dotCount = 0;
-        }
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("WiFi Connected!");
-        delay(2000);
-        lcd.clear();
-    } else {
-        Serial.println("\nERROR: Failed to connect to WiFi.");
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("WiFi Connect");
-        lcd.setCursor(0, 1);
-        lcd.print("Failed!");
-        delay(3000);
+    switch (readConfErr) {
+    case SDReader::err_read_config_t::RC_BAD_WIFI_CONFIG:
+        commandHandler.sendCommand("BAD_WIFI_CONF");
+        status = STATUS_ERROR;
         return;
     }
 
-    isStartupDone = true;
-    lcd.clear();
+    APIHandler::err_wifi_t api_err = apiHandler.init(wifiConfig);
+
+    if (api_err == APIHandler::err_wifi_t::WIFI_ERR) {
+        commandHandler.sendCommand("NO_WIFI_CONN");
+        status = STATUS_ERROR;
+        return;
+    }
+
+    camera_init();
+
+    esp_err_t camErr = esp_camera_init(&cameraConfig);
+    if (camErr != ESP_OK) {
+        Serial.printf("ERROR: Camera init failed with error 0x%x\n", camErr);
+        commandHandler.sendCommand("CAM_INIT_FAIL");
+        return;
+    }
+
+    APIHandler::api_response_code_t response = apiHandler.pingAPI();
+
+    Serial.println("API response: " + String(response));
+
+    if (response != 200) {
+        commandHandler.sendCommand("NO_INTERNET");
+        status = STATUS_ERROR;
+        return;
+    }
+
+    commandHandler.sendCommand("INIT_SUCCESS");
+    status = STATUS_READY;
 }
 
 void setup()
 {
-    Serial.begin(115200);
-    delay(1000);
+    Serial.begin(9600);
 
-    // Initialize I2C communication
-    Wire.begin(SDA_PIN, SCL_PIN);
-
-    // Initialize LCD
-    lcd.init();
-    lcd.backlight();
-    lcd.clear();
-    lcd.setCursor(1, 0);
-    lcd.print("Scale It!");
-    delay(2000);
-    lcd.clear();
-
-    // Initialize HX711
-    scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
-
-    if (!scale.is_ready()) {
-        Serial.println("ERROR: HX711 not detected!");
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("HX711 Error!");
-        delay(3000);
-    } else {
-        Serial.println("HX711 initialized.");
-        scale.set_scale(CALIBRATION_FACTOR); // Set calibration factor
-        scale.tare();                        // Reset scale to 0
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Scale Ready");
-        delay(2000);
-        lcd.clear();
-    }
-
-    // Read WiFi configuration
-    SDReader sdReader;
-    WiFiConfig config = sdReader.readConfig();
-    connectToWiFi(config);
+    // Register command handlers
+    commandHandler.registerRoute("HELLO", handleHello);
 }
 
 void loop()
 {
-    // Measure weight
-    if (scale.is_ready() && isStartupDone) {
-        float weight = scale.get_units();
-        Serial.printf("Weight: %.2f kg\n", weight);
-
-        lcd.setCursor(0, 0);
-        lcd.print("Weight:");
-        lcd.setCursor(0, 1);
-        lcd.printf("%.2f kg    ", weight); // Clear trailing characters
-    } else {
-        Serial.println("ERROR: HX711 not ready!");
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Scale Error!");
-    }
-
-    delay(1000);
 }
