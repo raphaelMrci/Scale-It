@@ -1,3 +1,5 @@
+#include <HTTPClient.h>
+
 #include "CommandHandler.hpp"
 #include "WiFiConfig.hpp"
 
@@ -17,5 +19,6 @@ class APIHandler
     api_response_code_t fetchData(const String &name, float &result);
 
   private:
+    HTTPClient _http; // Single instance of HTTPClient
     float _parseCalories(String &data);
 };

@@ -2,8 +2,9 @@
 
 // Constructor
 CommandHandler::CommandHandler(Stream &serialStream)
-    : serial(serialStream), numRoutes(0)
+    : serial(serialStream), numRoutes(0), bufferIndex(0)
 {
+    memset(commandBuffer, 0, sizeof(commandBuffer));
 }
 
 // Register a command and its handler
@@ -19,24 +20,50 @@ bool CommandHandler::registerRoute(const String &command,
     return true;
 }
 
-// Parse and execute an incoming command
+// Parse and execute an incoming command (non-blocking)
 void CommandHandler::handleIncomingCommand()
 {
-    if (serial.available()) {
-        String command = serial.readStringUntil('\n');
-        command.trim(); // Remove leading/trailing whitespace
+    while (serial.available()) {
+        char incomingChar = serial.read();
 
-        int spaceIndex = command.indexOf(' ');
-        String cmd = command.substring(0, spaceIndex);
-        String args =
-            (spaceIndex != -1) ? command.substring(spaceIndex + 1) : "";
-        Serial.println("Received command: " + cmd);
+        // Handle newline character (end of command)
+        if (incomingChar == '\n') {
+            commandBuffer[bufferIndex] = '\0'; // Null-terminate the buffer
+            String command = String(commandBuffer);
+            command.trim();        // Remove leading/trailing whitespace
+            command.toUpperCase(); // Convert to uppercase
 
-        for (int i = 0; i < numRoutes; i++) {
-            if (routes[i].command == cmd) {
-                routes[i].handler(args); // Call the corresponding handler
-                return;
+            // Serial.print("Received command: ");
+            // Serial.println(command);
+
+            // Parse command and arguments
+            int spaceIndex = command.indexOf(' ');
+            String cmd = command.substring(0, spaceIndex);
+            String args =
+                (spaceIndex != -1) ? command.substring(spaceIndex + 1) : "";
+
+            // Find and execute the corresponding handler
+            for (int i = 0; i < numRoutes; i++) {
+                String toCompare = routes[i].command;
+
+                toCompare.trim();
+
+                toCompare.toUpperCase();
+
+                if (toCompare == cmd) {
+                    // Serial.print("Executing handler for command: ");
+                    // Serial.println(cmd);
+                    routes[i].handler(args);
+                    break;
+                }
             }
+
+            // Reset the buffer for the next command
+            bufferIndex = 0;
+            memset(commandBuffer, 0, sizeof(commandBuffer));
+        } else if (bufferIndex < (sizeof(commandBuffer) - 1)) {
+            // Add character to buffer (prevent overflow)
+            commandBuffer[bufferIndex++] = incomingChar;
         }
     }
 }
@@ -44,10 +71,16 @@ void CommandHandler::handleIncomingCommand()
 // Send a command with optional arguments
 void CommandHandler::sendCommand(const String &command, const String &args)
 {
-    Serial.println("Sending command: " + command);
     String fullCommand = command;
     if (args.length() > 0) {
         fullCommand += " " + args;
     }
-    serial.println(fullCommand);
+
+    fullCommand += '\n'; // Add newline character
+
+    serial.print(fullCommand);
+
+    // Serial.print("Sending command: ");
+    // Serial.print(fullCommand);
+    // Serial.print('\n');
 }

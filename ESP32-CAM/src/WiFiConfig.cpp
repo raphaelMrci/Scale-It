@@ -2,10 +2,6 @@
 
 WiFiConfig::WiFiConfig()
 {
-    ssid = "";
-    password = "";
-    gateway = "";
-    ip = "";
 }
 
 WiFiConfig::WiFiConfig(std::string ssid, std::string password,

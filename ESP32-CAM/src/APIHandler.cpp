@@ -1,6 +1,6 @@
 #include "APIHandler.hpp"
 #include "config.h"
-#include <HTTPClient.h>
+
 #include <WiFi.h>
 
 #include <ArduinoJson.h>
@@ -57,15 +57,13 @@ APIHandler::err_wifi_t APIHandler::init(const WiFiConfig &config)
 
 APIHandler::api_response_code_t APIHandler::pingAPI()
 {
-    HTTPClient http;
-
     String url = API_URL + "/";
 
-    http.begin(url); // Start HTTP connection
+    _http.begin(url); // Start HTTP connection
 
-    int httpResponseCode = http.GET(); // Make a GET request
+    int httpResponseCode = _http.GET(); // Make a GET request
 
-    http.end(); // End the HTTP connection
+    _http.end(); // End the HTTP connection
 
     return httpResponseCode;
 }
@@ -73,15 +71,13 @@ APIHandler::api_response_code_t APIHandler::pingAPI()
 APIHandler::api_response_code_t APIHandler::fetchData(const String &name,
                                                       float &result)
 {
-    HTTPClient http;
-
     String url = API_URL + name;
-    http.begin(url); // Start HTTP connection
+    _http.begin(url); // Start HTTP connection
 
-    int httpResponseCode = http.GET(); // Make a GET request
+    int httpResponseCode = _http.GET(); // Make a GET request
 
     if (httpResponseCode > 0) {
-        String response = http.getString(); // Get the response
+        String response = _http.getString(); // Get the response
 
         // Parse response (extract calories value)
         result = _parseCalories(response);
@@ -90,7 +86,7 @@ APIHandler::api_response_code_t APIHandler::fetchData(const String &name,
         // Serial.println(httpResponseCode);
     }
 
-    http.end(); // End the HTTP connection
+    _http.end(); // End the HTTP connection
 
     return httpResponseCode;
 }

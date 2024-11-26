@@ -1,56 +1,50 @@
 #include "SDReader.hpp"
 #include "SD_MMC.h"
-#include <dirent.h>
 
+// Initialize SD card and create the default config file if necessary
 SDReader::err_sd_t SDReader::init()
 {
     if (!SD_MMC.begin("", true)) {
-        // Serial.println("ERROR: SD card initialization failed");
-        return SD_ERR_NO_SDC;
+        return SD_ERR_NO_SDC; // Return error if SD card initialization fails
     }
 
-    // Serial.println("SD card initialized");
-
-    // Check if config.txt file exists in SD card
+    // Check if config.txt exists
     if (!SD_MMC.exists("/config.txt")) {
-        // Serial.println("Config file not found");
-
-        // Create config.txt file
+        // Attempt to create the config.txt file
         File file = SD_MMC.open("/config.txt", FILE_WRITE);
         if (!file) {
-            // Serial.println("Failed to create config file");
-            return SD_ERR_CONFIG_FILE_NOT_CREATED;
+            return SD_ERR_CONFIG_FILE_NOT_CREATED; // Return error if file
+                                                   // creation fails
         }
-        file.print(_defaultConfig.c_str());
-        file.close();
-        // Serial.println("Config file created");
+
+        file.print(_defaultConfig.c_str()); // Write the default config
+        file.close(); // Ensure the file is properly closed
     }
+
     return SD_OK;
 }
 
+// Read and parse the configuration file into a WiFiConfig object
 SDReader::err_read_config_t SDReader::readConfig(WiFiConfig &config)
 {
-    // Serial.println("Reading config file...");
-
-    // Read the entire file content
-    String configFile = readFile("/config.txt");
-    if (configFile.isEmpty()) {
-        // Serial.println("ERROR: Config file is empty or cannot be read.");
-        return RC_BAD_WIFI_CONFIG;
+    String configFileContent = readFile("/config.txt");
+    if (configFileContent.isEmpty()) {
+        return RC_BAD_WIFI_CONFIG; // Return error if the file is empty or
+                                   // cannot be read
     }
 
-    String lines[5]; // To store lines temporarily
+    // Split the file content into lines
+    String lines[5];
     int index = 0;
 
-    // Split the file content into lines
-    while (configFile.length() > 0 && index < 5) {
-        int endOfLine = configFile.indexOf('\n');
-        if (endOfLine == -1) { // Last line
-            lines[index++] = configFile;
+    while (configFileContent.length() > 0 && index < 5) {
+        int endOfLine = configFileContent.indexOf('\n');
+        if (endOfLine == -1) { // Handle the last line
+            lines[index++] = configFileContent;
             break;
         } else {
-            lines[index++] = configFile.substring(0, endOfLine);
-            configFile = configFile.substring(endOfLine + 1);
+            lines[index++] = configFileContent.substring(0, endOfLine);
+            configFileContent = configFileContent.substring(endOfLine + 1);
         }
     }
 
@@ -71,26 +65,18 @@ SDReader::err_read_config_t SDReader::readConfig(WiFiConfig &config)
         }
     }
 
-    // Serial.println("Config file parsed successfully:");
-    // Serial.println("SSID: " + String(config.ssid.c_str()));
-    // Serial.println("Password: " + String(config.password.c_str()));
-    // Serial.println("Gateway: " + String(config.gateway.c_str()));
-    // Serial.println("IP: " + String(config.ip.c_str()));
-    // Serial.println("MASK: " + String(config.mask.c_str()));
-
-    return RC_OK;
+    return RC_OK; // Successfully parsed the config
 }
 
+// Read the contents of a file from the SD card
 String SDReader::readFile(String path)
 {
     File file = SD_MMC.open(path, FILE_READ);
-    String reading;
-
     if (!file) {
-        // Serial.println("ERROR: Unable to open file");
-        return "";
+        return ""; // Return an empty string if the file cannot be opened
     }
-    reading = file.readString();
-    file.close();
-    return reading;
+
+    String fileContent = file.readString(); // Read the entire file content
+    file.close();                           // Ensure the file is closed
+    return fileContent;
 }

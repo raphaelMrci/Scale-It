@@ -2,8 +2,10 @@
 #include "HX711.h"
 #include "config.h"
 
+#include <Arduino.h>
 #include <LiquidCrystal_I2C.h>
 #include <SoftwareSerial.h>
+#include <ctype.h>
 
 // LCD configuration
 #define I2C_ADDR 0x27  // I2C address of the LCD
@@ -27,25 +29,35 @@ LiquidCrystal_I2C lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 HX711 scale;
 
 // SoftwareSerial for communication with ESP32
-SoftwareSerial espSerial(ESP_RX, ESP_TX);
+// SoftwareSerial espSerial(ESP_RX, ESP_TX);
 
 // Instantiate CommandHandler for communication with ESP32
-CommandHandler commandHandler(espSerial);
+CommandHandler commandHandler(Serial);
 
 status_t status = STATUS_BOOT;
 
 void handleHello(const String &command)
 {
+    commandHandler.sendCommand("READY");
+    commandHandler.sendCommand("INIT");
+
     if (status == STATUS_BOOT) {
         status = STATUS_SYNCED;
-        commandHandler.sendCommand("HELLO");
+    }
+}
+
+void handleReady(const String &command)
+{
+    if (status == STATUS_BOOT) {
+        status = STATUS_SYNCED;
+        commandHandler.sendCommand("READY");
         commandHandler.sendCommand("INIT");
     }
 }
 
 void handleNoSDCard(const String &command)
 {
-    status = STATUS_ERROR;
+    status = STATUS_NO_SDC;
     lcd.clear();
     lcd.setCursor(1, 0);
     lcd.print("No SD card!");
@@ -53,7 +65,7 @@ void handleNoSDCard(const String &command)
 
 void handleBadWiFiConfig(const String &command)
 {
-    status = STATUS_ERROR;
+    status = STATUS_BAD_WIFI_CONF;
     lcd.clear();
     lcd.setCursor(1, 0);
     lcd.print("Bad WiFi config!");
@@ -61,7 +73,7 @@ void handleBadWiFiConfig(const String &command)
 
 void handleNoWiFiConnection(const String &command)
 {
-    status = STATUS_ERROR;
+    status = STATUS_NO_WIFI_CONN;
     lcd.clear();
     lcd.setCursor(1, 0);
     lcd.print("Unable to connect");
@@ -71,7 +83,7 @@ void handleNoWiFiConnection(const String &command)
 
 void handleCamInitFailed(const String &command)
 {
-    status = STATUS_ERROR;
+    status = STATUS_CAM_INIT_FAIL;
     lcd.clear();
     lcd.setCursor(1, 0);
     lcd.print("Camera init");
@@ -81,7 +93,7 @@ void handleCamInitFailed(const String &command)
 
 void handleNoInternet(const String &command)
 {
-    status = STATUS_ERROR;
+    status = STATUS_NO_INTERNET;
     lcd.clear();
     lcd.setCursor(1, 0);
     lcd.print("No internet");
@@ -91,10 +103,12 @@ void handleNoInternet(const String &command)
 
 void handleInitSuccess(const String &command)
 {
-    status = STATUS_READY;
-    lcd.clear();
-    lcd.setCursor(1, 0);
-    lcd.print("Scale It!");
+    if (status == STATUS_SYNCED) {
+        status = STATUS_READY;
+        lcd.clear();
+        lcd.setCursor(1, 0);
+        lcd.print("Scale It!");
+    }
 }
 
 // The ESP will respond with the name of the food item, and the calories per
@@ -125,7 +139,6 @@ void handleFoodNotRecognized(const String &command)
     lcd.print("recognized!");
     delay(2000); // Display for 2 seconds
 }
-
 void handleConfigFileNotCreated(const String &command)
 {
     status = STATUS_ERROR;
@@ -136,10 +149,61 @@ void handleConfigFileNotCreated(const String &command)
     lcd.print("not created...");
 }
 
+void statusHandler(const String &command)
+{
+    if (command.length() == 0) {
+        return;
+    }
+
+    if (!isdigit(command[0])) {
+        // Serial.println("Invalid status received: " + command);
+        return;
+    }
+
+    status_t newStatus = static_cast<status_t>(command.toInt());
+
+    switch (newStatus) {
+    case STATUS_BOOT:
+        handleHello("");
+        break;
+    case STATUS_SYNCED:
+        handleReady("");
+        break;
+    case STATUS_INIT:
+        break;
+    case STATUS_READY:
+        handleInitSuccess("");
+        break;
+    case STATUS_CAM_INIT_FAIL:
+        handleCamInitFailed("");
+        break;
+    case STATUS_NO_WIFI_CONN:
+        handleNoWiFiConnection("");
+        break;
+    case STATUS_NO_SDC:
+        handleNoSDCard("");
+        break;
+    case STATUS_CONFIG_FILE_NOT_CREATED:
+        handleConfigFileNotCreated("");
+        break;
+    case STATUS_BAD_WIFI_CONF:
+        handleBadWiFiConfig("");
+        break;
+    case STATUS_NO_INTERNET:
+        handleNoInternet("");
+        break;
+    }
+}
+
 void setup()
 {
     Serial.begin(115200);
-    espSerial.begin(115200); // Communication with ESP32
+    // espSerial.begin(115200); // Communication with ESP32
+    delay(1000);
+
+    while (!Serial) {
+        ; // Wait for serial port to connect
+    }
 
     delay(1000);
     // Initialize LCD
@@ -161,6 +225,8 @@ void setup()
     commandHandler.registerRoute("FOOD_NOT_RECOG", handleFoodNotRecognized);
     commandHandler.registerRoute("CONFIG_FILE_NOT_CREATED",
                                  handleConfigFileNotCreated);
+    commandHandler.registerRoute("READY", handleReady);
+    commandHandler.registerRoute("STATUS", statusHandler);
 
     // Send HELLO
     commandHandler.sendCommand("HELLO");
@@ -179,13 +245,27 @@ void setup()
 
 void loop()
 {
+    commandHandler.handleIncomingCommand(); // Handle serial commands
 
-    commandHandler.handleIncomingCommand();
-    delay(100);
-
-    if (status != STATUS_READY) {
+    if (status == STATUS_BOOT) {
+        static unsigned long lastHello = 0;
+        if (millis() - lastHello > 1000) { // Send HELLO every 1 second
+            lastHello = millis();
+            commandHandler.sendCommand("HELLO");
+        }
         return;
     }
+
+    static unsigned long lastStatus = 0;
+    if (millis() - lastStatus > 1000) { // Send STATUS every 1 second
+        lastStatus = millis();
+        commandHandler.sendCommand("STATUS");
+    }
+
+    if (status != STATUS_READY) {
+        return; // Skip processing if the system isn't ready
+    }
+
     // Read weight
     float weight = scale.get_units(10); // Get average weight from 10 readings
 

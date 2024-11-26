@@ -56,9 +56,18 @@ void camera_init()
 
 void handleHello(const String &command)
 {
+    commandHandler.sendCommand("READY");
+
     if (status == STATUS_BOOT) {
         status = STATUS_SYNCED;
-        commandHandler.sendCommand("HELLO");
+    }
+}
+
+void handleReady(const String &command)
+{
+    if (status == STATUS_BOOT) {
+        status = STATUS_SYNCED;
+        commandHandler.sendCommand("READY");
     }
 }
 
@@ -68,17 +77,19 @@ void handleInit(const String &command)
         return;
     }
 
+    status = STATUS_INIT;
+
     SDReader::err_sd_t err = sdReader.init();
 
     switch (err) {
 
     case SDReader::err_sd_t::SD_ERR_NO_SDC:
         commandHandler.sendCommand("NO_SDC");
-        status = STATUS_ERROR;
+        status = STATUS_NO_SDC;
         return;
     case SDReader::err_sd_t::SD_ERR_CONFIG_FILE_NOT_CREATED:
         commandHandler.sendCommand("CONFIG_FILE_NOT_CREATED");
-        status = STATUS_ERROR;
+        status = STATUS_CONFIG_FILE_NOT_CREATED;
         return;
     }
 
@@ -90,7 +101,7 @@ void handleInit(const String &command)
     switch (readConfErr) {
     case SDReader::err_read_config_t::RC_BAD_WIFI_CONFIG:
         commandHandler.sendCommand("BAD_WIFI_CONF");
-        status = STATUS_ERROR;
+        status = STATUS_BAD_WIFI_CONF;
         return;
     }
 
@@ -98,7 +109,7 @@ void handleInit(const String &command)
 
     if (api_err == APIHandler::err_wifi_t::WIFI_ERR) {
         commandHandler.sendCommand("NO_WIFI_CONN");
-        status = STATUS_ERROR;
+        status = STATUS_NO_WIFI_CONN;
         return;
     }
 
@@ -106,8 +117,10 @@ void handleInit(const String &command)
 
     esp_err_t camErr = esp_camera_init(&cameraConfig);
     if (camErr != ESP_OK) {
+        esp_camera_deinit();
         // Serial.printf("ERROR: Camera init failed with error 0x%x\n", camErr);
         commandHandler.sendCommand("CAM_INIT_FAIL");
+        status = STATUS_CAM_INIT_FAIL;
         return;
     }
 
@@ -117,7 +130,7 @@ void handleInit(const String &command)
 
     if (response != 200) {
         commandHandler.sendCommand("NO_INTERNET");
-        status = STATUS_ERROR;
+        status = STATUS_NO_INTERNET;
         return;
     }
 
@@ -125,20 +138,43 @@ void handleInit(const String &command)
     status = STATUS_READY;
 }
 
+void statusHandler(const String &command)
+{
+    commandHandler.sendCommand("STATUS", String(status));
+}
+
 void setup()
 {
     Serial.begin(115200);
     delay(1000);
 
+    while (!Serial) {
+        ;
+    }
+
     // Register command handlers
     commandHandler.registerRoute("HELLO", handleHello);
     commandHandler.registerRoute("INIT", handleInit);
+    commandHandler.registerRoute("READY", handleReady);
+    commandHandler.registerRoute("STATUS", statusHandler);
 
     commandHandler.sendCommand("HELLO");
 }
 
 void loop()
 {
-    commandHandler.handleIncomingCommand();
-    delay(100);
+    commandHandler.handleIncomingCommand(); // Handle serial commands
+
+    if (status == STATUS_BOOT) {
+        static unsigned long lastHello = 0;
+        if (millis() - lastHello > 1000) { // Send HELLO every 1 second
+            lastHello = millis();
+            commandHandler.sendCommand("HELLO");
+        }
+        return;
+    }
+
+    if (status != STATUS_READY) {
+        return; // Skip processing if the system isn't ready
+    }
 }
