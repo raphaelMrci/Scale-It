@@ -71,7 +71,7 @@ APIHandler::api_response_code_t APIHandler::pingAPI()
 APIHandler::api_response_code_t APIHandler::fetchData(const String &name,
                                                       float &result)
 {
-    String url = API_URL + name;
+    String url = API_URL + "/search/" + name;
     _http.begin(url); // Start HTTP connection
 
     int httpResponseCode = _http.GET(); // Make a GET request
