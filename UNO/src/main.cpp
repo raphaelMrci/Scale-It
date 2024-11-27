@@ -36,6 +36,8 @@ CommandHandler commandHandler(Serial);
 
 status_t status = STATUS_BOOT;
 
+float capturedWeight = 0;
+
 void handleHello(const String &command)
 {
     commandHandler.sendCommand("READY");
@@ -120,13 +122,19 @@ void handleFoodInfo(const String &command)
     String foodName = command.substring(0, spaceIndex);
     String calories = command.substring(spaceIndex + 1);
 
+    String firstLine = "Found: " + foodName;
+
+    // Display calories for current weight
+    String secondLine =
+        "cal: " + String(capturedWeight * calories.toFloat() / 100) + " kcal";
+
     // Display the food information on the LCD
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print(foodName);
+    lcd.print(firstLine);
     lcd.setCursor(0, 1);
-    lcd.print(calories);
-    lcd.print(" cal/100g");
+    lcd.print(secondLine);
+
     delay(5000); // Display for 5 seconds
 }
 
@@ -136,7 +144,7 @@ void handleFoodNotRecognized(const String &command)
     lcd.setCursor(1, 0);
     lcd.print("Food not");
     lcd.setCursor(1, 1);
-    lcd.print("recognized!");
+    lcd.print("recognized...");
     delay(2000); // Display for 2 seconds
 }
 void handleConfigFileNotCreated(const String &command)
@@ -195,6 +203,22 @@ void statusHandler(const String &command)
     }
 }
 
+void handleAIFailure(const String &command)
+{
+    lcd.clear();
+    lcd.setCursor(1, 0);
+    lcd.print("AI failed!");
+    delay(2000); // Display for 2 seconds
+}
+
+void handleCaptureFail(const String &command)
+{
+    lcd.clear();
+    lcd.setCursor(1, 0);
+    lcd.print("Capture failed!");
+    delay(2000); // Display for 2 seconds
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -227,6 +251,8 @@ void setup()
                                  handleConfigFileNotCreated);
     commandHandler.registerRoute("READY", handleReady);
     commandHandler.registerRoute("STATUS", statusHandler);
+    commandHandler.registerRoute("AI_FAIL", handleAIFailure);
+    commandHandler.registerRoute("CAPTURE_FAIL", handleCaptureFail);
 
     // Send HELLO
     commandHandler.sendCommand("HELLO");
@@ -239,8 +265,10 @@ void setup()
     scale.tare(); // Reset the scale to 0
 
     // Initialize tare button
-    pinMode(TARE_BUTTON_PIN,
-            INPUT_PULLUP); // Configure as input with pull-up resistor
+    pinMode(TARE_BUTTON_PIN, INPUT_PULLUP);
+
+    // Initialize capture button
+    pinMode(CAPTURE_BUTTON_PIN, INPUT_PULLUP);
 }
 
 void loop()
@@ -288,6 +316,17 @@ void loop()
         lcd.setCursor(0, 0);
         lcd.print("Tared!");
         delay(1000); // Display "Tared!" message
+    }
+
+    // Check if capture button is pressed
+    if (digitalRead(CAPTURE_BUTTON_PIN) ==
+        LOW) { // Button is pressed (active LOW)
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Capturing...");
+        capturedWeight = weight;
+        commandHandler.sendCommand("CAPTURE");
+        delay(3000); // Display "Capturing..." message
     }
 
     // Wait for 1 second before next reading

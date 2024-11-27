@@ -288,7 +288,6 @@ void handleCapture(const String &command)
 
     while (retryCount < maxRetries && !labelDetected) {
         retryCount++;
-        ei_printf("Attempting capture %d/%d...\n", retryCount, maxRetries);
 
         // Allocate memory for the snapshot buffer
         snapshot_buf = (uint8_t *)malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS *
